@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DTU University Info MCP Server
-Query thông tin tuyển sinh Đại học Duy Tân từ GitHub JSON data
+Query thông tin tuyển sinh Đại học Duy Tân từ file JSON local
 """
 
 import json
@@ -10,21 +10,16 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp import types
 
-# URL raw của file JSON trên GitHub (sửa lại đúng tên file)
 DATA_FILE = r"D:\py\git\intern_ai\dtu-mcp\data_thong_tin_chung.json"
-def fetch_data():
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+
 app = Server("dtu-university-info")
 
-# Cache data để không fetch lại mỗi lần
 _cached_data = None
 
-async def fetch_data() -> dict:
+def fetch_data() -> dict:
     global _cached_data
     if _cached_data is not None:
         return _cached_data
-    
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         _cached_data = json.load(f)
     return _cached_data
@@ -108,7 +103,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     try:
         data = fetch_data()
     except Exception as e:
-        return [types.TextContent(type="text", text=f"Lỗi khi tải dữ liệu từ GitHub: {str(e)}")]
+        return [types.TextContent(type="text", text=f"Lỗi khi tải dữ liệu: {str(e)}")]
 
     if name == "search_university_info":
         keyword = arguments["keyword"].lower()
@@ -118,12 +113,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             thong_tin = str(item.get("Thông tin", "")).lower()
             if keyword in noi_dung or keyword in thong_tin:
                 results.append(item)
-        
         if not results:
             return [types.TextContent(type="text", text=f"Không tìm thấy thông tin với từ khóa: '{arguments['keyword']}'")]
-        
         output = f"Tìm thấy {len(results)} kết quả cho '{arguments['keyword']}':\n\n"
-        for item in results[:5]:  # Giới hạn 5 kết quả
+        for item in results[:5]:
             output += f"📌 {item.get('Nội dung', '')}\n{item.get('Thông tin', '')}\n\n"
         return [types.TextContent(type="text", text=output)]
 
@@ -139,7 +132,6 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         query = arguments["query"].lower()
         mo_ta_nganh = data.get("mo_ta_nganh", {})
         results = []
-        
         for school, majors in mo_ta_nganh.items():
             if query in school.lower():
                 results.append(f"🏫 Trường: {school} - có {len(majors)} ngành")
@@ -147,10 +139,8 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             for major_name, details in majors.items():
                 if query in major_name.lower():
                     results.append(f"📚 Ngành: {major_name} | Trường: {school}")
-        
         if not results:
             return [types.TextContent(type="text", text=f"Không tìm thấy ngành/trường với từ khóa: '{arguments['query']}'")]
-        
         output = f"Tìm thấy {len(results)} kết quả:\n\n" + "\n".join(results[:10])
         return [types.TextContent(type="text", text=output)]
 
@@ -158,7 +148,6 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         major_name = arguments["major_name"].lower()
         school_name = arguments.get("school_name", "").lower()
         mo_ta_nganh = data.get("mo_ta_nganh", {})
-        
         for school, majors in mo_ta_nganh.items():
             if school_name and school_name not in school.lower():
                 continue
@@ -169,19 +158,16 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                         for key, val in item.items():
                             output += f"**{key}:**\n{val}\n\n"
                     return [types.TextContent(type="text", text=output)]
-        
         return [types.TextContent(type="text", text=f"Không tìm thấy thông tin ngành: '{arguments['major_name']}'")]
 
     elif name == "list_training_programs":
         level = arguments.get("level", "").lower()
         programs = data.get("chương_trình_đào_tạo_trong_và_sau_đại_học", [])
-        
         output = "Các chương trình đào tạo tại Đại học Duy Tân:\n\n"
         for item in programs:
             bac = str(item.get("Bậc", item.get("bac", ""))).lower()
             if not level or level in bac:
                 output += f"• {json.dumps(item, ensure_ascii=False)}\n"
-        
         return [types.TextContent(type="text", text=output)]
 
     return [types.TextContent(type="text", text=f"Tool không tồn tại: {name}")]
